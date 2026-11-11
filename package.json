@@ -1,0 +1,22 @@
+{
+  "name": "cfmon",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "轻量服务器监控面板，运行在 Cloudflare Workers + D1，不使用 Durable Objects",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:init": "wrangler d1 execute cfmon --remote --file=./schema.sql",
+    "db:init:local": "wrangler d1 execute cfmon --local --file=./schema.sql",
+    "preview": "node test/mock-server.mjs",
+    "test": "node test/local-test.mjs",
+    "test:ui": "node test/ui-test.mjs",
+    "test:agent": "python3 test/agent-test.py",
+    "test:shell": "sh test/shell-test.sh"
+  },
+  "devDependencies": {
+    "jsdom": "^31.0.0",
+    "wrangler": "^4.0.0"
+  }
+}

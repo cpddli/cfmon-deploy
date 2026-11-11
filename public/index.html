@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>cfmon · 服务器监控</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234b6bfb'/%3E%3Cpath d='M8 20l4-6 4 4 4-8 4 10' stroke='white' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<!-- ============ 登录 ============ -->
+<div id="login" class="login hidden">
+  <form class="login-card" id="login-form" autocomplete="on">
+    <div class="logo-big"></div>
+    <h1>cfmon</h1>
+    <p class="muted">输入管理密码以管理服务器</p>
+    <input id="login-password" type="password" placeholder="管理密码" autocomplete="current-password" required>
+    <button class="btn primary block" type="submit" id="login-submit">登录</button>
+    <button class="btn ghost block hidden" type="button" id="login-back">返回（游客浏览）</button>
+    <p class="form-err" id="login-err"></p>
+  </form>
+</div>
+
+<!-- ============ 首次初始化 ============ -->
+<div id="setup" class="login hidden">
+  <form class="login-card" id="setup-form" autocomplete="on">
+    <div class="logo-big"></div>
+    <h1>初始化 cfmon</h1>
+    <p class="muted">第一次使用，先给面板设一个管理密码</p>
+    <input id="setup-password" type="password" placeholder="设置密码（至少 6 位）" autocomplete="new-password" required>
+    <input id="setup-password2" type="password" placeholder="再输一次" autocomplete="new-password" required>
+    <button class="btn primary block" type="submit" id="setup-submit">创建密码并进入</button>
+    <p class="form-err" id="setup-err"></p>
+  </form>
+</div>
+
+<!-- ============ 主界面 ============ -->
+<div id="app" class="hidden">
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo"></span>
+      <h1>cfmon</h1>
+      <span class="brand-sub">Server Monitor</span>
+      <span class="badge-guest guest-only">游客模式</span>
+    </div>
+    <div class="actions">
+      <span class="pulse" id="pulse" title="自动刷新中"></span>
+      <button class="icon-btn" id="btn-theme" type="button" title="切换主题">🌙</button>
+      <button class="icon-btn admin-only" id="btn-settings" type="button" title="通知设置">⚙</button>
+      <button class="btn admin-only" id="btn-add" type="button">＋ 添加服务器</button>
+      <button class="btn primary guest-only" id="btn-login" type="button">登录</button>
+      <button class="btn ghost admin-only" id="btn-logout" type="button">退出</button>
+    </div>
+  </header>
+
+  <section class="summary-bar">
+    <div class="stat">
+      <span class="stat-label">当前时间</span>
+      <b id="stat-clock">--:--:--</b>
+    </div>
+    <div class="stat">
+      <span class="stat-label">当前在线</span>
+      <b id="stat-online">0 / 0</b>
+    </div>
+    <div class="stat">
+      <span class="stat-label">点亮地区</span>
+      <b id="stat-region">0</b>
+    </div>
+    <div class="stat">
+      <span class="stat-label">流量概览</span>
+      <b id="stat-traffic">—</b>
+    </div>
+    <div class="stat">
+      <span class="stat-label">网络速率</span>
+      <b id="stat-net">—</b>
+    </div>
+  </section>
+
+  <div class="toolbar">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input id="search" class="search" type="search" placeholder="搜索节点名称、地区、系统…" autocomplete="off">
+    </div>
+    <span class="count" id="count-line"></span>
+  </div>
+
+  <main>
+    <section id="grid" class="grid"></section>
+    <div id="empty" class="empty hidden">
+      <div class="empty-icon">🖥️</div>
+      <h2>还没有服务器</h2>
+      <p class="muted admin-only">点右上角「添加服务器」，然后在你的 VPS 上执行一条命令即可开始上报。</p>
+      <p class="muted guest-only">管理员添加服务器后，这里会显示运行状态。</p>
+    </div>
+    <div id="need-login" class="empty hidden">
+      <div class="empty-icon">🔒</div>
+      <h2>需要登录</h2>
+      <p class="muted">这个面板没有开启游客模式，登录后才能查看服务器状态。</p>
+      <button class="btn primary" id="btn-login2" type="button">登录</button>
+    </div>
+  </main>
+</div>
+
+<!-- ============ 详情 ============ -->
+<div class="modal hidden" id="detail">
+  <div class="modal-mask" data-close></div>
+  <div class="modal-body wide" id="detail-body"></div>
+</div>
+
+<!-- ============ 添加服务器 ============ -->
+<div class="modal hidden" id="add-modal">
+  <div class="modal-mask" data-close></div>
+  <div class="modal-body">
+    <h2 id="add-title">添加服务器</h2>
+    <div id="add-form">
+      <p class="muted">创建后会给出一次性密钥和安装命令，在服务器上执行即可。</p>
+      <label class="field">
+        <span>名称</span>
+        <input id="add-name" placeholder="例如：香港-01" maxlength="64">
+      </label>
+      <label class="field">
+        <span>地区（可选，一个 emoji 或短词，会显示在卡片标题前）</span>
+        <input id="add-region" placeholder="例如 🇭🇰 或 HK" maxlength="16">
+      </label>
+      <label class="field">
+        <span>备注（可选）</span>
+        <input id="add-note" placeholder="例如：2C2G / 建站" maxlength="200">
+      </label>
+    </div>
+    <div id="add-result" class="hidden"></div>
+    <div class="row-end" id="add-actions">
+      <button class="btn ghost" data-close type="button">取消</button>
+      <button class="btn primary" id="add-submit" type="button">创建</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<!-- ============ 通知设置 ============ -->
+<div class="modal hidden" id="settings-modal">
+  <div class="modal-mask" data-close></div>
+  <div class="modal-body wide">
+    <h2>通知设置</h2>
+    <p class="muted">通过 Telegram Bot 推送告警。阈值要「持续」达到设定时长才会发，同类提醒在冷却时间内不会重复。</p>
+
+    <div class="set-section">
+      <h3>Telegram</h3>
+      <div class="set-row">
+        <label class="field grow"><span>Bot Token</span>
+          <input id="set-tg-token" placeholder="123456789:AA..." autocomplete="off" spellcheck="false"></label>
+        <label class="field grow"><span>Chat ID</span>
+          <input id="set-tg-chat" placeholder="123456789 或 -1001234567890" autocomplete="off" spellcheck="false"></label>
+        <button class="btn" id="btn-tg-test" type="button">发送测试</button>
+      </div>
+      <p class="hint">找 <b>@BotFather</b> 建 bot 拿 token；跟 bot 私聊一句，再用 <b>@userinfobot</b> 查 chat id。群组 id 是负数。</p>
+    </div>
+
+    <div class="set-section">
+      <h3>持续负载告警</h3>
+      <label class="set-line"><input type="checkbox" id="set-cpu-on">
+        CPU 高于 <input class="num" id="set-cpu-pct" type="number" min="1" max="100"> % 持续
+        <input class="num" id="set-cpu-min" type="number" min="3" max="1440"> 分钟</label>
+      <label class="set-line"><input type="checkbox" id="set-mem-on">
+        内存高于 <input class="num" id="set-mem-pct" type="number" min="1" max="100"> % 持续
+        <input class="num" id="set-mem-min" type="number" min="3" max="1440"> 分钟</label>
+      <label class="set-line"><input type="checkbox" id="set-net-on">
+        网络上下行合计高于 <input class="num" id="set-net-mbps" type="number" min="1" max="100000"> MB/s 持续
+        <input class="num" id="set-net-min" type="number" min="3" max="1440"> 分钟</label>
+      <label class="set-line"><input type="checkbox" id="set-offline-on">
+        离线超过 <input class="num" id="set-offline-min" type="number" min="1" max="1440"> 分钟</label>
+      <label class="set-line">同类提醒冷却 <input class="num" id="set-cooldown" type="number" min="5" max="10080"> 分钟</label>
+    </div>
+
+    <div class="set-section">
+      <h3>账单提醒</h3>
+      <label class="set-line">到期前 <input id="set-billing-days" class="wide-input" placeholder="7,3,1,0"> 天提醒（逗号分隔，填 0 表示当天）</label>
+      <p class="hint">每台服务器的到期日、周期、是否循环计费，在它的详情弹层里单独设置。</p>
+    </div>
+
+    <div class="row-end">
+      <button class="btn ghost" data-close type="button">关闭</button>
+      <button class="btn primary" id="btn-set-save" type="button">保存</button>
+    </div>
+  </div>
+</div>
+
+<script src="/app.js" type="module"></script>
+</body>
+</html>

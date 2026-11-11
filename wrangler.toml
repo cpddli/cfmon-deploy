@@ -1,0 +1,24 @@
+# cfmon —— Cloudflare Workers + D1 服务器监控面板
+# 这个文件是「一键部署」用的通用配置：
+# database_id 是占位值，部署时会让你选一个已有的 D1 数据库，或者现场新建一个。
+
+name = "cfmon"
+main = "src/index.js"
+compatibility_date = "2025-04-01"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[vars]
+OFFLINE_AFTER = "90"
+SAMPLE_INTERVAL = "60"
+RETENTION_DAYS = "1"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cfmon"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[triggers]
+crons = ["*/2 * * * *", "17 3 * * *"]
